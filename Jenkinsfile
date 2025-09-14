@@ -1,31 +1,32 @@
 pipeline {
   agent any
+  environment {
+    REPO = "devops-task"
+    IMAGE_TAG = "${env.GIT_COMMIT}"
+    DOCKER_USER = "harshit126"
+}
+
   stages {
-    stage('Build') {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+    stage('Install & Test') {
       steps {
-        sh 'npm install'
-        sh 'npm test || echo "No tests defined"'
+        sh 'npm ci'
+        sh 'npm test'
       }
     }
-    stage('Dockerize') {
+    stage('Build Docker Image') {
       steps {
-        sh 'docker build -t harshit2387/logo-server .'
+        sh "docker build -t $DOCKER_USER/$REPO:$IMAGE_TAG ."
       }
     }
-    stage('Push to Registry') {
+    stage('Push to DockerHub') {
       steps {
-        withCredentials([string(credentialsId: 'dockerhub-token', variable: 'DOCKER_TOKEN')]) {
-          sh '''
-            echo $DOCKER_TOKEN | docker login -u harshit2387 --password-stdin
-            docker tag logo-server harshit2387/logo-server:latest
-            docker push harshit2387/logo-server:latest
-          '''
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+          sh "docker push $DOCKER_USER/$REPO:$IMAGE_TAG"
         }
-      }
-    }
-    stage('Deploy') {
-      steps {
-        sh './deploy.sh'
       }
     }
   }
